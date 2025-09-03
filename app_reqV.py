@@ -54,13 +54,16 @@ def load_data(uploaded_file):
             return None
 
 def find_and_rename_nusp_column(df):
-    """Encontra e renomeia colunas padrão (NUSP, problema, parecer SG, obs SG)."""
+    """Encontra e renomeia colunas padrão para facilitar o processamento."""
     rename_map = {
         'nusp': ['nusp', 'numero usp', 'número usp', 'n° usp', 'n usp'],
         'problema': ['problema'],
         'Nome completo': ['nome completo'],
         'parecer_sg': ['parecer do serviço de graduação', 'parecer serviço de graduação'],
-        'obs_sg': ['observação do sg', 'observacao sg', 'observação sg']
+        'obs_sg': ['observação do sg', 'observacao sg', 'observação sg'],
+        'link_requerimento': ['links pedidos requerimento'],
+        'link_plano_estudos': ['link plano de estudos'],
+        'link_plano_presenca': ['link plano de presença']
     }
 
     actual_renames = {}
@@ -155,7 +158,6 @@ def display_overview(df_requerimentos, alunos_com_historico, df_novos):
     """Exibe as métricas principais e gráficos na aba 'Visão Geral'."""
     st.markdown("### 📊 Métricas Principais")
     
-    # Cálculos
     total_req = len(df_requerimentos)
     alunos_unicos_com_hist = alunos_com_historico["nusp"].nunique()
     total_alunos_req = df_requerimentos["nusp"].nunique()
@@ -174,7 +176,6 @@ def display_overview(df_requerimentos, alunos_com_historico, df_novos):
     if not alunos_com_historico.empty:
         st.markdown("### 📈 Análise Gráfica dos Alunos com Histórico")
         
-        # Métricas adicionais
         pareceres = alunos_com_historico['parecer_historico'].str.lower()
         aprovados = pareceres.str.contains('aprovado', na=False) & ~pareceres.str.contains('indeferido|negado', na=False)
         negados = pareceres.str.contains('indeferido|negado', na=False)
@@ -218,7 +219,7 @@ def display_students_with_history(alunos_com_historico, export_format):
     with col1:
         search_query = st.text_input("Pesquisar por Nome ou NUSP", placeholder="Digite para buscar...", key="search_hist")
     with col2:
-        problem_types = ['Todos'] + sorted(alunos_com_historico['problema_atual'].unique().tolist())
+        problem_types = ['Todos'] + sorted(alunos_com_historico['problema_atual'].dropna().unique().tolist())
         problem_filter = st.selectbox("Filtrar por Problema Atual", options=problem_types)
 
     df_filtered = alunos_com_historico.copy()
@@ -242,14 +243,27 @@ def display_students_with_history(alunos_com_historico, export_format):
             req_atual_cols = ['problema_atual']
             if 'parecer_sg_atual' in historico_aluno.columns: req_atual_cols.append('parecer_sg_atual')
             if 'obs_sg_atual' in historico_aluno.columns: req_atual_cols.append('obs_sg_atual')
+            if 'link_requerimento_atual' in historico_aluno.columns: req_atual_cols.append('link_requerimento_atual')
+            if 'link_plano_estudos_atual' in historico_aluno.columns: req_atual_cols.append('link_plano_estudos_atual')
+            if 'link_plano_presenca_atual' in historico_aluno.columns: req_atual_cols.append('link_plano_presenca_atual')
 
-            requerimentos_atuais = historico_aluno[req_atual_cols].drop_duplicates().fillna('Não informado')
+            requerimentos_atuais = historico_aluno[req_atual_cols].drop_duplicates().fillna('')
             requerimentos_atuais.rename(columns={
                 'problema_atual': 'Problema',
                 'parecer_sg_atual': 'Parecer SG',
-                'obs_sg_atual': 'Observação SG'
+                'obs_sg_atual': 'Observação SG',
+                'link_requerimento_atual': 'Link Requerimento',
+                'link_plano_estudos_atual': 'Link Plano de Estudos',
+                'link_plano_presenca_atual': 'Link Plano de Presença'
             }, inplace=True)
-            st.dataframe(requerimentos_atuais, hide_index=True, use_container_width=True)
+            
+            column_config = {
+                "Link Requerimento": st.column_config.LinkColumn("Requerimento", display_text="Abrir"),
+                "Link Plano de Estudos": st.column_config.LinkColumn("Plano de Estudos", display_text="Abrir"),
+                "Link Plano de Presença": st.column_config.LinkColumn("Plano de Presença", display_text="Abrir"),
+            }
+            final_config = {k: v for k, v in column_config.items() if k in requerimentos_atuais.columns}
+            st.dataframe(requerimentos_atuais, hide_index=True, use_container_width=True, column_config=final_config)
             st.write("---")
 
             st.write("##### 📜 Histórico Completo de Pedidos:")
@@ -273,14 +287,27 @@ def display_new_students(df_novos, export_format):
     display_cols = ['nusp', 'Nome completo', 'problema_atual']
     if 'parecer_sg_atual' in df_novos.columns: display_cols.append('parecer_sg_atual')
     if 'obs_sg_atual' in df_novos.columns: display_cols.append('obs_sg_atual')
+    if 'link_requerimento_atual' in df_novos.columns: display_cols.append('link_requerimento_atual')
+    if 'link_plano_estudos_atual' in df_novos.columns: display_cols.append('link_plano_estudos_atual')
+    if 'link_plano_presenca_atual' in df_novos.columns: display_cols.append('link_plano_presenca_atual')
     
-    df_display = df_novos[display_cols].drop_duplicates().fillna('Não informado')
+    df_display = df_novos[display_cols].drop_duplicates().fillna('')
     df_display.rename(columns={
         'problema_atual': 'Problema Atual',
         'parecer_sg_atual': 'Parecer SG',
-        'obs_sg_atual': 'Observação SG'
+        'obs_sg_atual': 'Observação SG',
+        'link_requerimento_atual': 'Link Requerimento',
+        'link_plano_estudos_atual': 'Link Plano de Estudos',
+        'link_plano_presenca_atual': 'Link Plano de Presença'
     }, inplace=True)
-    st.dataframe(df_display, hide_index=True, use_container_width=True)
+    
+    column_config = {
+        "Link Requerimento": st.column_config.LinkColumn("Requerimento", display_text="Abrir"),
+        "Link Plano de Estudos": st.column_config.LinkColumn("Plano de Estudos", display_text="Abrir"),
+        "Link Plano de Presença": st.column_config.LinkColumn("Plano de Presença", display_text="Abrir"),
+    }
+    final_config = {k: v for k, v in column_config.items() if k in df_display.columns}
+    st.dataframe(df_display, hide_index=True, use_container_width=True, column_config=final_config)
     
     st.markdown("---")
     st.markdown("### 📥 Exportar Relatório de Alunos Novos")
@@ -291,7 +318,6 @@ def display_new_students(df_novos, export_format):
 def run_app():
     st.markdown('<h1 class="main-header">📋 Sistema de Conferência de Requerimentos de Matrícula</h1>', unsafe_allow_html=True)
 
-    # --- Sidebar para Upload e Configurações ---
     with st.sidebar:
         st.header("📁 Upload de Arquivos")
         st.markdown("---")
@@ -303,18 +329,16 @@ def run_app():
             show_debug = st.checkbox("Mostrar informações de debug", value=False)
             export_format = st.selectbox("Formato de exportação", ["Excel", "CSV"])
 
-    # --- Tela Inicial ---
     if not (file_consolidado and file_requerimentos):
         st.markdown("### 🚀 Bem-vindo! Para começar, faça o upload dos dois arquivos na barra lateral.")
         with st.expander("📋 Estrutura esperada dos arquivos"):
             st.markdown("""
             - **Arquivo Consolidado:** `nusp`, `disciplina`, `Ano`, `Semestre`, `problema`, `parecer`
             - **Arquivo de Requerimentos:** `nusp`, `Nome completo`, `problema`
-            - **(Opcional em Requerimentos):** `Parecer do serviço de graduação`, `Observação SG`
+            - **(Opcional em Requerimentos):** `Parecer do serviço de graduação`, `Observação SG`, `Links Pedidos Requerimento`, `Link Plano de estudos`, `link plano de presença`
             """)
         return
 
-    # --- Processamento e Exibição ---
     try:
         with st.spinner("Processando arquivos... Por favor, aguarde."):
             df_consolidado = load_data(file_consolidado)
@@ -332,8 +356,6 @@ def run_app():
             
             validate_dataframes(df_consolidado, df_requerimentos)
 
-            # Remove a coluna 'Nome completo' do histórico para evitar conflito no merge.
-            # O nome do arquivo de requerimentos é a fonte da verdade.
             if 'Nome completo' in df_consolidado.columns:
                 df_consolidado = df_consolidado.drop(columns=['Nome completo'])
             
@@ -346,13 +368,15 @@ def run_app():
             req_rename_map = {'problema': 'problema_atual'}
             if 'parecer_sg' in df_requerimentos.columns: req_rename_map['parecer_sg'] = 'parecer_sg_atual'
             if 'obs_sg' in df_requerimentos.columns: req_rename_map['obs_sg'] = 'obs_sg_atual'
+            if 'link_requerimento' in df_requerimentos.columns: req_rename_map['link_requerimento'] = 'link_requerimento_atual'
+            if 'link_plano_estudos' in df_requerimentos.columns: req_rename_map['link_plano_estudos'] = 'link_plano_estudos_atual'
+            if 'link_plano_presenca' in df_requerimentos.columns: req_rename_map['link_plano_presenca'] = 'link_plano_presenca_atual'
             df_requerimentos.rename(columns=req_rename_map, inplace=True)
             
             alunos_com_historico = df_requerimentos.merge(df_consolidado, on="nusp", how="inner")
             nusps_com_historico = set(alunos_com_historico['nusp'])
             df_novos = df_requerimentos[~df_requerimentos['nusp'].isin(nusps_com_historico)]
 
-        # --- Criação das Abas ---
         tab_overview, tab_with_history, tab_new_students = st.tabs([
             f"📊 Visão Geral ({df_requerimentos['nusp'].nunique()} Alunos)",
             f"👤 Alunos com Histórico ({len(nusps_com_historico)})",
@@ -361,10 +385,8 @@ def run_app():
 
         with tab_overview:
             display_overview(df_requerimentos, alunos_com_historico, df_novos)
-
         with tab_with_history:
             display_students_with_history(alunos_com_historico, export_format)
-
         with tab_new_students:
             display_new_students(df_novos, export_format)
 
