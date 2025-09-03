@@ -331,6 +331,11 @@ def run_app():
                     st.write("**Requerimentos:**", df_requerimentos.columns.tolist())
             
             validate_dataframes(df_consolidado, df_requerimentos)
+
+            # Remove a coluna 'Nome completo' do histórico para evitar conflito no merge.
+            # O nome do arquivo de requerimentos é a fonte da verdade.
+            if 'Nome completo' in df_consolidado.columns:
+                df_consolidado = df_consolidado.drop(columns=['Nome completo'])
             
             df_consolidado = preprocess_data(df_consolidado, file_consolidado.name)
             df_requerimentos = preprocess_data(df_requerimentos, file_requerimentos.name)
